@@ -1,0 +1,39 @@
+name: Build Windows VST3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-vst3:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure with CMake
+        run: cmake -S . -B build -A x64
+
+      - name: Build VST3
+        run: cmake --build build --config Release --target ChainReactionDrums_VST3 --parallel
+
+      - name: Package VST3 bundle
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path build -Recurse -Directory -Filter "*.vst3" |
+            Where-Object { $_.FullName -match "Release" } |
+            Select-Object -First 1
+          if (-not $plugin) {
+            Get-ChildItem build -Recurse | Select-Object -ExpandProperty FullName
+            throw "Could not find a Release .vst3 bundle."
+          }
+          Compress-Archive -Path $plugin.FullName -DestinationPath "$env:GITHUB_WORKSPACE\ChainReactionDrums-Windows-x64-VST3.zip" -Force
+
+      - name: Upload installable VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChainReactionDrums-Windows-x64-VST3
+          path: ChainReactionDrums-Windows-x64-VST3.zip
+          if-no-files-found: error
+          retention-days: 30
